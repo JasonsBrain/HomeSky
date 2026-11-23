@@ -1,0 +1,40 @@
+# =============================================================================
+#  Homesky – a local-only smart home controller.
+#
+#  PRIVACY NOTE ON DEPENDENCIES
+#  Every package below is code that runs inside the app, so the list is kept
+#  as short as possible. None of them send data anywhere:
+#    - shared_preferences : saves your device list and settings ON the device.
+#    - wakelock_plus      : keeps the screen awake in wall panel mode.
+#  Networking uses Dart's built-in dart:io HttpClient, so no HTTP library is
+#  needed. Fonts are bundled in assets/ (no Google Fonts download at runtime).
+# =============================================================================
+
+name: homesky
+description: Local-only control for Tasmota and WLED devices. No cloud, no accounts, no tracking.
+publish_to: 'none' # Never publish this package to pub.dev by accident.
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.3.2
+  wakelock_plus: ^1.2.8
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Michroma, bundled with the app. Licence: assets/fonts/OFL.txt (SIL Open Font Licence).
+  # To try another font: drop the .ttf in assets/fonts, add it here and change
+  # `fontFamily` in lib/ui/theme.dart.
+  fonts:
+    - family: Michroma
+      fonts:
+        - asset: assets/fonts/Michroma-Regular.ttf
