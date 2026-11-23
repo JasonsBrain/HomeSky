@@ -170,6 +170,11 @@ class LocalNetwork {
       final request = await open().timeout(timeout);
       // Never follow a redirect: it could point outside the home network.
       request.followRedirects = false;
+      // Use a fresh connection for every request. The small web servers in
+      // WLED/Tasmota (ESP8266/ESP32 chips) handle "keep-alive" connections
+      // badly: reusing one can hang until it times out, which shows up as
+      // "not responding" even though the device is fine.
+      request.persistentConnection = false;
       if (body != null) {
         request.headers.contentType = ContentType.json;
         request.write(body);
@@ -186,11 +191,12 @@ class LocalNetwork {
     } on DeviceUnreachableException {
       rethrow;
     } on TimeoutException {
-      throw DeviceUnreachableException('Device did not answer in time.');
-    } on SocketException {
-      throw DeviceUnreachableException('Could not reach the device.');
-    } on HttpException {
-      throw DeviceUnreachableException('Connection to the device failed.');
+      throw DeviceUnreachableException('Device did not answer within ${timeout.inSeconds} s.');
+    } on SocketException catch (e) {
+      // Include the system's reason (e.g. "Connection refused") to help fix problems.
+      throw DeviceUnreachableException('Could not reach the device (${e.osError?.message ?? e.message}).');
+    } on HttpException catch (e) {
+      throw DeviceUnreachableException('Connection to the device failed (${e.message}).');
     } on FormatException {
       throw DeviceUnreachableException('Device sent an answer Homesky does not understand.');
     }

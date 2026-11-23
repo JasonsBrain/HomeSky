@@ -157,11 +157,14 @@ class AppState extends ChangeNotifier {
       }
       state.reachable = true;
       state.needsPassword = false;
-    } on TasmotaPasswordException {
+      state.lastError = null;
+    } on TasmotaPasswordException catch (e) {
       state.reachable = false;
       state.needsPassword = true;
-    } catch (_) {
+      state.lastError = '$e';
+    } catch (e) {
       state.reachable = false;
+      state.lastError = '$e';
     }
     state.waiting = false;
   }
@@ -179,11 +182,14 @@ class AppState extends ChangeNotifier {
     try {
       await send();
       state.reachable = true;
-    } on TasmotaPasswordException {
+      state.lastError = null;
+    } on TasmotaPasswordException catch (e) {
       state.reachable = false;
       state.needsPassword = true;
-    } catch (_) {
+      state.lastError = '$e';
+    } catch (e) {
       state.reachable = false;
+      state.lastError = '$e';
     } finally {
       state.waiting = false;
       _sending.remove(device.id);

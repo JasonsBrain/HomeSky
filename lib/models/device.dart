@@ -92,6 +92,10 @@ class DeviceState {
   /// Tasmota asked for a password we don't have (or have wrong).
   bool needsPassword = false;
 
+  /// Why the last check or command failed, in plain words (null = it worked).
+  /// Shown in the "not responding" warning to help track down problems.
+  String? lastError;
+
   bool on = false;
 
   /// 0–100 %.

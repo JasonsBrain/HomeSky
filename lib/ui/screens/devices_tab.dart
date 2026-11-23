@@ -90,10 +90,16 @@ class DevicesTab extends StatelessWidget {
     final down = app.unreachable;
     if (down.isEmpty) return const [];
     final names = down.map((d) => d.name).join(', ');
+    // Technical reason for each device, e.g. "Device did not answer within 3 s."
+    final details = down
+        .where((d) => app.stateOf(d).lastError != null)
+        .map((d) => '${d.name} (${d.ip}): ${app.stateOf(d).lastError}')
+        .join('\n');
     return [
       WarningBanner(
         title: down.length == 1 ? '1 device not responding' : '${down.length} devices not responding',
-        body: '$names may be switched off at the wall, out of Wi-Fi range, or on a new IP address.',
+        body: '$names may be switched off at the wall, out of Wi-Fi range, or on a new IP address.'
+            '${details.isEmpty ? '' : '\n\nDetails:\n$details'}',
       ),
     ];
   }
