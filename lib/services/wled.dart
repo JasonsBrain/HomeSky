@@ -11,8 +11,8 @@
 //    GET  /json/pal      → list of palette names (index = palette id)
 //    GET  /presets.json  → saved presets
 //
-//  Homesky controls segment 0 (the whole strip unless you've split it into
-//  segments in WLED). Multi-segment control is a planned extra.
+//  Segments: changes go to all segments, or to one segment picked on the
+//  WLED screen. Create/resize segments in WLED's own web page.
 // =============================================================================
 
 import '../models/device.dart';
@@ -55,19 +55,61 @@ class WledClient {
     state.on = s['on'] == true;
     if (s['bri'] is num) state.brightness = _toPercent(s['bri'] as num);
 
-    final segments = s['seg'];
-    if (segments is List && segments.isNotEmpty && segments.first is Map) {
-      final seg = segments.first as Map;
-      final colours = seg['col'];
-      if (colours is List && colours.isNotEmpty && colours.first is List) {
-        final c = (colours.first as List).whereType<num>().map((n) => n.toInt()).toList();
-        if (c.length >= 3) state.rgb = c.sublist(0, 3);
+    // Read every segment.
+    final segments = <WledSegment>[];
+    final list = s['seg'];
+    if (list is List) {
+      for (var index = 0; index < list.length; index++) {
+        final raw = list[index];
+        if (raw is! Map) continue;
+        // WLED lists unused slots with "stop": 0 – skip them.
+        final stop = _int(raw['stop']);
+        if (stop == 0) continue;
+        segments.add(WledSegment(
+          // Older WLED versions have no "id": the position in the list is the id.
+          id: _int(raw['id'], index),
+          start: _int(raw['start']),
+          stop: stop,
+          name: raw['n'] is String ? raw['n'] as String : '',
+          on: raw['on'] != false,
+          rgb: _firstColour(raw['col']),
+          effect: _int(raw['fx']),
+          speed: _int(raw['sx'], 128),
+          intensity: _int(raw['ix'], 128),
+          palette: _int(raw['pal']),
+        ));
       }
-      if (seg['fx'] is num) state.effect = (seg['fx'] as num).toInt();
-      if (seg['sx'] is num) state.speed = (seg['sx'] as num).toInt();
-      if (seg['ix'] is num) state.intensity = (seg['ix'] as num).toInt();
-      if (seg['pal'] is num) state.palette = (seg['pal'] as num).toInt();
     }
+    state.segments = segments;
+
+    // Forget a chosen segment that no longer exists.
+    if (state.wledTarget != null && !segments.any((g) => g.id == state.wledTarget)) {
+      state.wledTarget = null;
+    }
+
+    // Show the values of the segment being edited (or the first one for "All").
+    WledSegment? shown;
+    for (final g in segments) {
+      if (state.wledTarget == null || g.id == state.wledTarget) {
+        shown = g;
+        break;
+      }
+    }
+    if (shown != null) {
+      if (shown.rgb != null) state.rgb = shown.rgb;
+      state.effect = shown.effect;
+      state.speed = shown.speed;
+      state.intensity = shown.intensity;
+      state.palette = shown.palette;
+    }
+  }
+
+  static int _int(dynamic v, [int fallback = 0]) => v is num ? v.toInt() : fallback;
+
+  static List<int>? _firstColour(dynamic col) {
+    if (col is! List || col.isEmpty || col.first is! List) return null;
+    final c = (col.first as List).whereType<num>().map((n) => n.toInt()).toList();
+    return c.length >= 3 ? c.sublist(0, 3) : null;
   }
 
   /// Ask a new device what it is. Used by "Test connection" and the scanner.
@@ -115,13 +157,23 @@ class WledClient {
     await LocalNetwork.postJson(device.ip, '/json/state', change);
   }
 
-  /// Change settings of segment 0 only.
-  static Future<void> setSegment(Device device, Map<String, dynamic> change) =>
-      setState(device, {
-        'seg': [
-          {'id': 0, ...change}
-        ]
-      });
+  /// Change segment settings.
+  ///
+  /// [segmentIds] lists the segments to change, e.g. [0, 1]. Each segment is
+  /// addressed by its id, so it works however your segments are set up.
+  /// An empty list sends the change as an object, which WLED applies to all
+  /// currently selected segments.
+  static Future<void> setSegments(Device device, List<int> segmentIds, Map<String, dynamic> change,
+      {bool alsoOn = false}) {
+    final Object seg = segmentIds.isEmpty ? change : [for (final id in segmentIds) {'id': id, ...change}];
+    return setState(device, {
+      // Colour/effect picks also switch the strip on and stop a running
+      // playlist ("pl": -1), which would otherwise overwrite your choice.
+      if (alsoOn) 'on': true,
+      if (alsoOn) 'pl': -1,
+      'seg': seg,
+    });
+  }
 
   static Future<void> setPower(Device device, bool on) => setState(device, {'on': on});
 
@@ -129,22 +181,28 @@ class WledClient {
       setState(device, {'on': true, 'bri': _toWled(percent)});
 
   /// Sets the primary colour (and switches the strip on).
-  static Future<void> setColor(Device device, List<int> rgb) => setState(device, {
-        'on': true,
-        'seg': [
-          {
-            'id': 0,
-            'col': [
-              [rgb[0], rgb[1], rgb[2]]
-            ]
-          }
-        ],
-      });
+  /// Also switches each segment on, in case it was turned off in WLED.
+  static Future<void> setColor(Device device, List<int> rgb, List<int> segmentIds) => setSegments(
+        device,
+        segmentIds,
+        {
+          'on': true,
+          'frz': false, // un-freeze, or a frozen segment ignores the change
+          'col': [
+            [rgb[0], rgb[1], rgb[2]]
+          ],
+        },
+        alsoOn: true,
+      );
 
-  static Future<void> setEffect(Device device, int id) => setSegment(device, {'fx': id});
-  static Future<void> setSpeed(Device device, int value) => setSegment(device, {'sx': value.clamp(0, 255)});
-  static Future<void> setIntensity(Device device, int value) => setSegment(device, {'ix': value.clamp(0, 255)});
-  static Future<void> setPalette(Device device, int id) => setSegment(device, {'pal': id});
+  static Future<void> setEffect(Device device, int id, List<int> segmentIds) =>
+      setSegments(device, segmentIds, {'fx': id, 'frz': false}, alsoOn: true);
+  static Future<void> setSpeed(Device device, int value, List<int> segmentIds) =>
+      setSegments(device, segmentIds, {'sx': value.clamp(0, 255)});
+  static Future<void> setIntensity(Device device, int value, List<int> segmentIds) =>
+      setSegments(device, segmentIds, {'ix': value.clamp(0, 255)});
+  static Future<void> setPalette(Device device, int id, List<int> segmentIds) =>
+      setSegments(device, segmentIds, {'pal': id});
 
   static Future<void> applyPreset(Device device, int id) => setState(device, {'ps': id});
 

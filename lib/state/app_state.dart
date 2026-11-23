@@ -253,19 +253,34 @@ class AppState extends ChangeNotifier {
         if (device.type == DeviceType.tasmota) {
           await TasmotaClient.setColor(device, rgb);
         } else {
-          await WledClient.setColor(device, rgb);
+          await WledClient.setColor(device, rgb, _segmentIds(device));
         }
       });
 
   // ---- WLED extras ----
+
+  /// Segment ids that WLED changes should go to: the picked segment, or all.
+  List<int> _segmentIds(Device device) {
+    final s = stateOf(device);
+    if (s.wledTarget != null) return [s.wledTarget!];
+    return s.segments.map((g) => g.id).toList();
+  }
+
+  /// Pick which segment the WLED controls change (null = all segments).
+  Future<void> setWledTarget(Device device, int? segmentId) async {
+    stateOf(device).wledTarget = segmentId;
+    notifyListeners();
+    await refreshDevice(device); // load that segment's current values
+  }
+
   Future<void> setEffect(Device device, int id) {
     stateOf(device).effect = id;
-    return _command(device, () => WledClient.setEffect(device, id));
+    return _command(device, () => WledClient.setEffect(device, id, _segmentIds(device)));
   }
 
   Future<void> setPalette(Device device, int id) {
     stateOf(device).palette = id;
-    return _command(device, () => WledClient.setPalette(device, id));
+    return _command(device, () => WledClient.setPalette(device, id, _segmentIds(device)));
   }
 
   void previewSpeed(Device device, int value) {
@@ -275,7 +290,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> setSpeed(Device device, int value) {
     stateOf(device).speed = value;
-    return _command(device, () => WledClient.setSpeed(device, value));
+    return _command(device, () => WledClient.setSpeed(device, value, _segmentIds(device)));
   }
 
   void previewIntensity(Device device, int value) {
@@ -285,7 +300,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> setIntensity(Device device, int value) {
     stateOf(device).intensity = value;
-    return _command(device, () => WledClient.setIntensity(device, value));
+    return _command(device, () => WledClient.setIntensity(device, value, _segmentIds(device)));
   }
 
   Future<void> applyPreset(Device device, int id) async {

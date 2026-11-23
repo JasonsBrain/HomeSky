@@ -95,6 +95,28 @@ class _WledScreenState extends State<WledScreen> {
                   ),
                 ]),
 
+                // ---- Segments ----
+                // Pick which part of the strip the controls below change.
+                if (s.segments.length > 1)
+                  Panel(children: [
+                    SectionLabel('Segments', trailing: Caps('${s.segments.length}', size: 11, color: HS.muted)),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      _chip('All segments', s.wledTarget == null, accent, () => app.setWledTarget(device, null)),
+                      for (final g in s.segments)
+                        _chip('${g.label} · ${g.ledRange}', s.wledTarget == g.id, accent, () => app.setWledTarget(device, g.id)),
+                    ]),
+                    Caps(
+                      s.wledTarget == null
+                          ? 'Colour, effect and palette changes go to every segment.'
+                          : 'Colour, effect and palette changes go to this segment only.',
+                      size: 10,
+                      color: HS.muted,
+                      caps: false,
+                      weight: FontWeight.w400,
+                      height: 1.5,
+                    ),
+                  ]),
+
                 // ---- Colour ----
                 Panel(children: [
                   SectionLabel('Colour',
@@ -196,7 +218,7 @@ class _WledScreenState extends State<WledScreen> {
                 ]),
 
                 const Caps(
-                  'Segments: Homesky controls the whole strip (segment 0). Split segments are managed in the WLED web page for now.',
+                  'To create, resize or rename segments, use WLED\'s own web page (Segments section). They show up here automatically.',
                   size: 9,
                   color: HS.faint,
                   caps: false,

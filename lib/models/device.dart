@@ -114,8 +114,45 @@ class DeviceState {
   double? yesterdayKwh;
 
   // ---- WLED extras ----
+  // These show the values of the segment being edited (see [wledTarget]).
   int effect = 0;
   int speed = 128; //     0–255
   int intensity = 128; // 0–255
   int palette = 0;
+
+  /// The strip's segments (parts of the strip with their own effect/colour).
+  List<WledSegment> segments = [];
+
+  /// Which segment the WLED controls change: null = all segments.
+  int? wledTarget;
+}
+
+/// One WLED segment, e.g. "LEDs 0–59". Set segments up in WLED's own web page.
+class WledSegment {
+  WledSegment({
+    required this.id,
+    required this.start,
+    required this.stop,
+    required this.name,
+    required this.on,
+    this.rgb,
+    this.effect = 0,
+    this.speed = 128,
+    this.intensity = 128,
+    this.palette = 0,
+  });
+
+  final int id;
+  final int start; // first LED
+  final int stop; //  one past the last LED
+  final String name;
+  final bool on;
+  final List<int>? rgb;
+  final int effect;
+  final int speed;
+  final int intensity;
+  final int palette;
+
+  String get label => name.isNotEmpty ? name : 'Segment ${id + 1}';
+  String get ledRange => 'LEDs $start–${stop - 1}';
 }
