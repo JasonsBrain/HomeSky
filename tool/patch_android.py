@@ -22,6 +22,9 @@ What it changes in android/app/src/main/AndroidManifest.xml, and why:
   android:label="Homesky"
       The name under the app icon.
 
+It also copies the Homesky icon (assets/icon/ic_launcher_*.png, made by
+tool/make_icons.py) over Flutter's default launcher icon.
+
 Safe to run more than once: it skips anything already applied.
 """
 
@@ -89,6 +92,15 @@ RULES_DIR.mkdir(parents=True, exist_ok=True)
 """,
     encoding="utf-8",
 )
+
+# 4) App icon: replace Flutter's default with the Homesky icon.
+import shutil
+ICONS = Path("assets/icon")
+for density in ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]:
+    source = ICONS / f"ic_launcher_{density}.png"
+    target = Path(f"android/app/src/main/res/mipmap-{density}/ic_launcher.png")
+    if source.exists() and target.parent.exists():
+        shutil.copyfile(source, target)
 
 print("Homesky Android settings applied:")
 print(text)
