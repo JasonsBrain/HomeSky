@@ -176,8 +176,14 @@ class LocalNetwork {
       // "not responding" even though the device is fine.
       request.persistentConnection = false;
       if (body != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(body);
+        // Send the body in one piece with an exact length and a plain
+        // "application/json" type. Without a length, Dart sends the body in
+        // "chunks", which the small web servers in WLED/Tasmota can't read:
+        // WLED then answers "400 Bad Request".
+        final bytes = utf8.encode(body);
+        request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+        request.contentLength = bytes.length;
+        request.add(bytes);
       }
       final response = await request.close().timeout(timeout);
       final text = await response.transform(utf8.decoder).join().timeout(timeout);
