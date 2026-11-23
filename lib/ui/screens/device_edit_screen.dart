@@ -50,6 +50,25 @@ class _DeviceEditScreenState extends State<DeviceEditScreen> {
     _password = TextEditingController(text: d?.password ?? '');
     _type = d?.type ?? DeviceType.tasmota;
     _kind = d?.kind ?? DeviceKind.plug;
+    // Saved devices and devices found by the scan have already answered once.
+    _verified = d != null;
+    _lastIp = _ip.text;
+    // Changing the address means it needs testing again.
+    _ip.addListener(_ipChanged);
+  }
+
+  /// True once a device has answered at the current address.
+  bool _verified = false;
+  String _lastIp = '';
+
+  void _ipChanged() {
+    if (_ip.text == _lastIp) return; // cursor moves also notify; ignore those
+    _lastIp = _ip.text;
+    setState(() {
+      _verified = false;
+      _test = _TestStatus.idle;
+      _testMessage = '';
+    });
   }
 
   @override
@@ -87,6 +106,7 @@ class _DeviceEditScreenState extends State<DeviceEditScreen> {
         _testMessage = 'Connected: WLED with ${info.ledCount} LEDs.';
       }
       _test = _TestStatus.ok;
+      _verified = true;
     } on TasmotaPasswordException {
       _test = _TestStatus.needsPassword;
       _testMessage = 'This Tasmota device has a web password. Enter it below and test again.';
@@ -98,6 +118,30 @@ class _DeviceEditScreenState extends State<DeviceEditScreen> {
   }
 
   Future<void> _save() async {
+    // Saving an untested address is the most common cause of "not responding",
+    // so ask first if the connection test hasn't passed.
+    if (!_verified) {
+      final saveAnyway = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Caps('Connection not confirmed', size: 14),
+          content: const Caps(
+            'Homesky hasn\'t reached a device at this address yet. Check the IP is the device\'s own address '
+            '(not your router or DNS server), then tap TEST CONNECTION. Save anyway?',
+            size: 11,
+            color: HS.muted,
+            caps: false,
+            weight: FontWeight.w400,
+            height: 1.5,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Caps('Go back', size: 11)),
+            TextButton(onPressed: () => Navigator.pop(c, true), child: const Caps('Save anyway', size: 11)),
+          ],
+        ),
+      );
+      if (saveAnyway != true || !mounted) return;
+    }
     final app = AppScope.read(context);
     final device = Device(
       id: widget.device?.id ?? AppState.newId(),

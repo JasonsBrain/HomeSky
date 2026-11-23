@@ -4,7 +4,8 @@
 //  WLED has a JSON API: https://kno.wled.ge/interfaces/json-api/
 //
 //  Endpoints used here:
-//    GET  /json/si       → current state + device info
+//    GET  /json/state    → current state (works on all WLED versions)
+//    GET  /json/info     → device name and LED count (used when adding)
 //    POST /json/state    → change state (power, brightness, colour, effect...)
 //    GET  /json/eff      → list of effect names (index = effect id)
 //    GET  /json/pal      → list of palette names (index = palette id)
@@ -44,12 +45,12 @@ class WledClient {
 
   /// Refresh [state] with the strip's current status.
   static Future<void> refresh(Device device, DeviceState state) async {
-    final answer = await LocalNetwork.getJson(device.ip, '/json/si');
-    if (answer is! Map<String, dynamic>) {
-      throw DeviceUnreachableException('Unexpected answer from WLED.');
+    // /json/state is supported by every WLED version (the newer /json/si
+    // endpoint isn't available on older firmware).
+    final s = await LocalNetwork.getJson(device.ip, '/json/state');
+    if (s is! Map<String, dynamic> || !s.containsKey('on')) {
+      throw DeviceUnreachableException('This address did not answer like a WLED device.');
     }
-    final s = answer['state'];
-    if (s is! Map<String, dynamic>) return;
 
     state.on = s['on'] == true;
     if (s['bri'] is num) state.brightness = _toPercent(s['bri'] as num);
